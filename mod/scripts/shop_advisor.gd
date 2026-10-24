@@ -74,22 +74,23 @@ func _read_json(path: String) -> Dictionary:
 		return out
 	var err = f.open(path, File.READ)
 	if err != OK:
-		printerr("ShopAdvisor: 无法打开 ", path, " ", error_string(err))
+		printerr("ShopAdvisor: 无法打开 ", path, " err=", str(err))
 		f.close()
 		return out
-	var txt := f.get_as_text()
+	var txt = f.get_as_text()
 	f.close()
-	var json = JSON.new()
-	if json.parse(txt) != OK:
-		printerr("ShopAdvisor: JSON 解析失败 ", path)
+	var res = JSON.parse(txt)
+	if res.error != OK:
+		printerr("ShopAdvisor: JSON 解析失败 ", path, " ", res.get("error_string"))
 		return out
-	if typeof(json.data) == TYPE_DICTIONARY:
-		out = json.data
+	if typeof(res.result) == TYPE_DICTIONARY:
+		out = res.result
 	return out
 
 
 # 入口：给定 run_data/玩家序号与商店栏位数据，返回 advise_shop 的结果字典
-func advise(run_data, player_index: int, offers_data: Array, reroll_cost: float, shop_tier: int) -> Dictionary:
+func advise(run_data, player_index: int, offers_data: Array, reroll_cost: float, shop_tier: int,
+		locked_indices: Array = []) -> Dictionary:
 	if not enabled:
 		return {}
 	var player: Dictionary = collector.collect_player(run_data, index, player_index, advisor)
@@ -99,7 +100,8 @@ func advise(run_data, player_index: int, offers_data: Array, reroll_cost: float,
 			offers.append(collector.collect_offer(node, index))
 		else:
 			offers.append(null)
-	var shop := {"tier": shop_tier, "reroll_cost": reroll_cost, "offers": offers}
+	var shop := {"tier": shop_tier, "reroll_cost": reroll_cost, "offers": offers,
+		"locked": locked_indices}
 	var result = advisor.advise_shop(player, shop, priors, index)
 	if debug:
 		_write_debug(player, shop, result)
@@ -129,9 +131,13 @@ func _write_debug(player, shop, result) -> void:
 	if wave < 0:
 		wave = 0
 	var path := DEBUG_FILE_PREFIX + str(wave) + DEBUG_FILE_SUFFIX
+	# Godot 3 的 get_setting 只收一个参数，没有默认值重载
+	var game_version := "unknown"
+	if ProjectSettings.has_setting("application/config/version"):
+		game_version = str(ProjectSettings.get_setting("application/config/version"))
 	var payload := {
 		"engine": str(Engine.get_version_info().get("string", "?")),
-		"game_version": str(ProjectSettings.get_setting("application/config/version", "unknown")),
+		"game_version": game_version,
 		"mod_dir": mod_dir,
 		"index_size": index.size(),
 		"probes": _merged_probes(),
@@ -143,7 +149,7 @@ func _write_debug(player, shop, result) -> void:
 	var f = File.new()
 	var err = f.open(path, File.WRITE)
 	if err != OK:
-		printerr("ShopAdvisor: 调试文件写不了 ", path, " ", error_string(err))
+		printerr("ShopAdvisor: 调试文件写不了 ", path, " err=", str(err))
 		debug = false			# 写不了就关掉，免得每次重算都刷错误日志
 		return
 	f.store_string(JSON.print(payload, "  "))

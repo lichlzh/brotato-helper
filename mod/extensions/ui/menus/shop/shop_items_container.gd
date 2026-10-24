@@ -72,14 +72,18 @@ func update_advisor() -> void:
 
 	var offers := []
 	var has_item := []
+	var locked := []
 	var sig_bits := PoolStringArray()
 	for it in slots:
 		var ok := is_instance_valid(it) and it.get("item_data") != null
 		has_item.append(ok)
 		# 传 ShopItem 节点：显示价 ShopItem.value 已含折扣
 		offers.append(it if ok else null)
+		var lk := _adv_is_locked(it) if ok else false
+		if lk:
+			locked.append(slots.find(it))
 		if ok:
-			sig_bits.append("%s@%s" % [_adv_item_id(it), str(it.get("value"))])
+			sig_bits.append("%s@%s%s" % [_adv_item_id(it), str(it.get("value")), "*" if lk else ""])
 		else:
 			sig_bits.append("-")
 	var reroll := _adv_reroll_cost(p_index)
@@ -95,7 +99,7 @@ func update_advisor() -> void:
 	# 诊断模式下扫一次游戏对象的字段清单（只跑一次，不参与建议计算）
 	if hub.get("debug") == true and hub.has_method("set_inventory") and not hub.has_inventory():
 		_adv_scan_inventory(hub, slots)
-	var result = hub.advise(RunData, p_index, offers, reroll, tier)
+	var result = hub.advise(RunData, p_index, offers, reroll, tier, locked)
 	if typeof(result) != TYPE_DICTIONARY or not result.has("items"):
 		return
 	hub.last_result = result
@@ -154,6 +158,27 @@ func _adv_item_id(node) -> String:
 		return ""
 	var mid = data.get("my_id")
 	return "" if mid == null else String(mid)
+
+
+func _adv_is_locked(node) -> bool:
+	# 锁定状态的字段名本机无法验证：几个候选按顺序试，命中哪个记进 probes。
+	# 锁定只影响「刷新会换掉几个栏位」的期望值，猜错最坏也只是刷新建议偏保守。
+	if not is_instance_valid(node):
+		return false
+	for key in ["locked", "is_locked", "lock"]:
+		var v = node.get(key)
+		if v != null:
+			_adv_note("locked", "ShopItem.%s=%s" % [key, str(v)])
+			return bool(v)
+	var data = node.get("item_data")
+	if data != null:
+		for key in ["locked", "is_locked"]:
+			var dval = data.get(key)
+			if dval != null:
+				_adv_note("locked", "item_data.%s=%s" % [key, str(dval)])
+				return bool(dval)
+	_adv_note("locked", "未找到字段，按未锁处理")
+	return false
 
 
 func _adv_rerolls_used(p_index: int) -> int:

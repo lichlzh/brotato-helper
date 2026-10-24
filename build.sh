@@ -12,8 +12,10 @@ echo "==> 回归测试"
 python3 "$ROOT/tools/check_parity.py"
 python3 "$ROOT/tools/check_gd.py"
 python3 "$ROOT/tools/check_inputs.py"
+python3 "$ROOT/tools/check_special_coverage.py"
 python3 "$ROOT/tools/calibrate.py" --check
 python3 "$ROOT/tools/evaluate.py" > /dev/null
+python3 "$ROOT/tools/check_gd_diff.py"
 python3 "$ROOT/tools/ingest_debug.py" --selftest
 python3 -c "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]" \
   "$MOD_DIR/manifest.json" "$MOD_DIR/data/priors.json" "$MOD_DIR/data/brotato_data.json"

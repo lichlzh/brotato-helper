@@ -18,14 +18,18 @@
 
 建议随局面变化：波次、难度、当前属性、已有武器构成（近战/远程占比）、金钱、负重上限都会改变评分。
 
-不是逐件独立判「买得起就买」：四件栏位会在剩余金币预算下穷举所有子集（≤10 件），比较**组合价值**后给出
-「买这几件」。组合里每件按已经买下的东西重新估边际价值 —— 所以会出现「分数最高的那件反而建议锁定，
-因为两件便宜的加起来更值」「第二件同类护甲边际递减所以不叠」这类单件比较给不出的结论。
+不是逐件独立判「买得起就买」：四件栏位会在剩余金币预算下穷举所有子集（候选上限 8 件，商店正常 4 栏），
+比较**组合价值**后给出「买这几件」。组合里每件按已经买下的东西重新估边际价值 —— 所以会出现「分数最高的
+那件反而建议锁定，因为两件便宜的加起来更值」「第二件同类护甲边际递减所以不叠」这类单件比较给不出的结论。
 
-刷新建议不是拍脑袋的阈值：它把当前档位物品池里的每一件都按你这个局面打一遍分，
-用「抽 4 件不重复时最好那件」的解析期望（order statistic）跟现状比，所以「负重满了刷武器也没用」
-这类局面会自动倾向于不刷。刷不刷用的是**买完推荐组合后剩下的钱**判断，不会出现「买这三件 + 去刷新」的矛盾建议。
-所有数值权重都在 `mod/data/priors.json` 里，改参数不用改代码。
+刷新建议不是拍脑袋的阈值：它把当前档位物品池里的每一件都按你这个局面打一遍分，按**固定的武器/物品构成**
+（`reroll_weapon_share`，默认各一半，与这家店实际摆了什么无关）抽「已解锁栏位数」件不重复时最好那件的
+解析期望（order statistic），跟现状比。已锁定的栏位不会被重掷，它们当前的分值作为每件新货的下限；
+`banned_ids` 里有的 id 会从池子里剔除。所以「负重满了刷武器也没用」「锁了一件神装，刷出来只要比它好就行」
+这类局面会自动反映到刷不刷上。刷不刷用的是**买完推荐组合后剩下的钱**判断，不会出现「买这三件 + 去刷新」的矛盾建议。
+
+绝大多数数值权重在 `mod/data/priors.json` 里，改参数不用改代码；少数曲线形状（如护甲/闪避的递减分母）
+仍写在 `advisor.py` / `advisor.gd` 的同一个函数里，改它们必须两边同步。
 
 ---
 
@@ -66,7 +70,7 @@ Brotato 已内置 godot-mod-loader，不需要额外装任何东西。
 ### 第一次进游戏：建议先开诊断落盘
 
 这个 mod 是在没有游戏的环境下写的，`state_collector.gd` 里所有字段读取途径（属性怎么取、金钱怎么取、
-已刷新次数存在哪、档位怎么算）都是按常见写法**猜**的，全部做了兜底。开了诊断落盘后，游戏里每次进商店
+已刷新次数存在哪、档位怎么算、诅咒标记与栏位锁定状态在哪里）都是按常见写法**猜**的，全部做了兜底。开了诊断落盘后，游戏里每次进商店
 都会把「实际命中了哪条途径 + 完整的输入输出」按波次写成 JSON，发回来即可核对字段名、把真实局面补成回归用例。
 
 1. 编辑 `mods-unpacked/BrotatoHelper-ShopAdvisor/data/priors.json`，把 `"debug_dump": false` 改成 `true`
@@ -82,7 +86,8 @@ Brotato 已内置 godot-mod-loader，不需要额外装任何东西。
 4. 把这些文件发回来后，开发机上一条命令转成候选用例：`python3 tools/ingest_debug.py game_dumps/*.json`
    —— 它会同时打印每个局面里哪些读取途径没命中（需要改代码），其余只是给调参提供真实数据。
 
-文件里有 `probes`（每个字段命中的读取途径，例如 `stat_read: get_effect_value`、`tier: 内置波次→档位表兜底`）、
+文件里有 `probes`（每个字段命中的读取途径，例如 `stat_read: get_effect_value`、`tier: 内置波次→档位表兜底`、
+`cursed: ShopItem.cursed=false`、`locked: ShopItem.locked`）、
 `player`/`shop`（引擎看到的原始输入）、`result`（打分与建议），还有一份 `inventory`：**`/root` 下有哪些单例节点，
 以及 `RunData` / `ItemService` / 角色节点 / `ShopItem` 与其 `item_data` 各自声明的属性、方法、信号名**
 （第一次重算时扫一次，只落盘、不参与任何建议）。上游参考库里没有怪物/天赋/ban 的数据，这些名字本机也猜不出来，
@@ -139,10 +144,14 @@ tools/
   record_margins.py   确认建议仍合理后，把当前阈值距离写回用例（调完 priors 再跑一次）
   check_parity.py     静态检查 advisor.py 与 advisor.gd 没有跑偏（stat 键 / priors 键 / 函数名集合 / 输出字段）
   check_gd.py         GDScript 结构体检：tab 缩进、括号配对、函数/局部变量重名、Godot 4 写法
+  check_gd_diff.py    差分测试：用 Godot 3 无头模式跑 advisor.gd 与 advisor.py 逐字段对拍，
+                      并编译另外两个纯脚本、实跑一次 JSON 读取（找不到 Godot 3 时 SKIP）
+  gd_runner.gd       上面差分测试的 Godot 侧 runner（SceneTree 脚本，喂同一批用例、吐 out.json）
   check_inputs.py     输入契约：引擎读的字段必须 py/gd 一致，且运行时真的产出（用例是手写的，盖不住这类缺口）
+  check_special_coverage.py 非属性效果覆盖率：效果键必须被显式分类，未知键/方向错误直接失败
   calibrate.py        权重标定审计：本机数据到底能不能校验属性权重（结论：售价不能，物品内部兑换比能）
   ingest_debug.py     游戏诊断文件 → 候选回归用例 + 合并字段清单（tests/inventory_from_game.json）
-tests/cases.json      16 个典型局面 + 期望建议 + 每个断言栏位离阈值的距离
+tests/cases.json      21 个典型局面 + 期望建议 + 每个断言栏位离阈值的距离
 build.sh              回归 → 打包 zip（根目录直接是 manifest.json）
 ```
 
@@ -153,8 +162,10 @@ build.sh              回归 → 打包 zip（根目录直接是 manifest.json�
 python3 tools/fetch_data.py     # 更新参考数据（当前：257 武器 / 247 物品 / 64 角色）
 python3 tools/evaluate.py -v    # 逐用例看每个栏位的打分、阈值距离、买组合、E[重掷最好件]
 python3 tools/check_parity.py   # py/gd 同构检查
-python3 tools/check_gd.py       # GDScript 结构体检（本机没有 Godot 3 编译器）
+python3 tools/check_gd.py       # GDScript 结构体检
+python3 tools/check_gd_diff.py  # 差分测试（需要 Godot 3；GODOT3_BIN 可指定路径，找不到则 SKIP）
 python3 tools/check_inputs.py   # 输入契约检查（py/gd 读同一批字段，且运行时都产出）
+python3 tools/check_special_coverage.py  # 非属性效果覆盖/方向检查
 python3 tools/calibrate.py      # 权重标定审计（售价为什么不能用 + 兑换比 α 表）
 python3 tools/calibrate.py --check   # 守卫：已采用的修正方向是否仍与当前数据拟合一致（build.sh 会跑）
 python3 tools/record_margins.py # 调完 priors、人工确认建议仍合理后写回阈值距离
@@ -164,8 +175,10 @@ python3 tools/ingest_debug.py game_dumps/*.json   # 游戏诊断文件 → 候�
 ```
 
 改决策逻辑时必须 Python 与 GDScript 两边同步改，`check_parity.py` 会在函数名集合出现单边漂移时拦下来；
-`evaluate.py` 除了用例期望，还对每个局面校验不变量：不超预算、标 buy/maybe 的件都在 `buy_set` 里、
-`lock` 不指向推荐购买的那件。
+`check_gd_diff.py` 则在能找到 Godot 3 时用同一批用例**真跑** `advisor.gd`，把标签、分数、买组合、锁、
+刷新期望逐字段和 Python 对拍（本机没装 Godot 时打印 SKIP，不影响打包；装了就是硬门）。
+`evaluate.py` 除了用例期望，还对每个局面校验不变量：不超预算、`spend` 等于推荐组合的价、`left` 等于预算减支出、
+`buy_set` 无重复、标 buy/maybe 的件都在 `buy_set` 里、`lock` 不指向任何标 buy 的件（包括免费件）。
 
 ### 属性权重怎么来的：一次证伪 + 一次可用的标定
 
@@ -200,6 +213,29 @@ python3 tools/ingest_debug.py game_dumps/*.json   # 游戏诊断文件 → 候�
 结论写进 `priors.json` 的 `_stat_weight_adj_help`（含全强度 α 备查）。**绝对尺度只能靠游戏内实跑定标**：
 开第 2 节的诊断落盘打一把，把 `shopadvisor_debug_w*.json` 拿回来跑 `ingest_debug.py`，
 对着真实局面看建议有没有「明显不该买却买了」，那才是能动的下一个旋钮。
+
+### 非属性效果与诅咒：显式分类，方向写在符号里
+
+参考数据里的效果键远不止 `stat_*`。现在的规则是：
+
+- **`special_keys`（按点计分）**：绝大多数效果键在这里有显式权重。方向直接用符号表达，
+  所以「负效果」不需要另写一套逻辑 —— `items_price: -1.0` 让涨价变成扣分，
+  `lose_hp_per_second: -1.5` 让持续掉血变成扣分，`free_rerolls: 3.0` 让免费刷新变成加分。
+- **`special_flat_keys`（按条计分）**：`effect_burning`、`effect_explode` 这类标记型效果，
+  `value` 恒为 0 但确实有效，按固定分计。
+- **没登记的键**：按 `value × special_unknown_per_point` 给一点分，并夹在
+  `±special_unknown_cap` 内。这样未知的**负**效果不会因为「不认识」反被当成好处（旧版本的 bug），
+  未知的正效果也不会把杂货顶成神件。
+- **键为空**：参考数据里仍有约 13% 的效果实例没有键名，保留旧的 `special_bonus_per_effect`/条 + 正向封顶兜底。
+
+`tools/check_special_coverage.py` 是这道门：参考数据里出现的每个非 `stat_` 键必须被显式分类，
+否则打包失败；同时抽查 `enemy_health`、`items_price`、`lose_hp_per_second` 等键的方向。
+加新 DLC 数据后若出现新键，它会直接告诉你缺哪几个。
+
+**诅咒物品**：`state_collector.read_cursed` 依次探测 `ShopItem.cursed` / `is_cursed`、
+`item_data.cursed` / `is_cursed`、参考表 `cursed`，命中途径写进 probe；全都没取到时按非诅咒处理，
+probe 里会写「未找到字段」。诅咒物品在评分里额外扣 `cursed_penalty`。
+真实字段名仍需按第 2 节的诊断落盘在游戏内确认一次。
 
 ### 武器职业套装：只算增量
 
@@ -238,11 +274,14 @@ python3 tools/ingest_debug.py game_dumps/*.json   # 游戏诊断文件 → 候�
 
 ## 5. 已知限制
 
-- **未在游戏中实测**。开发机上没有 Steam 和 Godot 3，GDScript 无法本地编译，只能靠
-  「核心逻辑纯函数化 + Python 同构实现 + 用例回归」保证逻辑正确；UI hook 部分按
-  [Bantato](https://github.com/lilongfei2000/Bantato) 等现成 shop hook 的真实字段写，仍需首次进游戏验证。
+- **UI hook 未在游戏中实测**。开发机上没有 Steam；GDScript 逻辑在提供 Godot 3 二进制时由
+  `check_gd_diff.py` 无头实跑并与 Python 对拍，但脚本扩展（商店栏位、汇总行、锁定读取）仍按
+  [Bantato](https://github.com/lilongfei2000/Bantato) 等现成 shop hook 的真实字段写，需要首次进游戏验证。
+- 诅咒标记、栏位锁定状态、ban 列表三者的真实字段名未在游戏内确认：读取全部是防御式的，
+  取不到时分别退回「非诅咒」「未锁定」「不过滤」，probe 会记录实际命中的途径。
 - 效用模型是人工先验，不是精确的战斗模拟：它判断「这件相对本档位标准件值不值」，不保证最优解。
-- 非属性类效果（`+1 商店栏位`、`陷阱`、`队友相关`）只有粗略权重，缺协同判断。
+- 非属性类效果有显式权重表，但仍是逐项独立估价，缺协同判断（例如「燃烧」与「燃烧加成」的组合）。
+  参考数据里约 13% 的效果实例没有键名，只能走兜底分。
 - 刷新期望会把「刷出来也买不起」的高分件算进去：因为锁定免费，刷到好件锁住、下波再买是本作的常规打法。
   若你更想「买不起就别刷」，在 `expected_reroll_score` 里按 `price > gold` 过滤即可（Python 与 GDScript 同步改）。
 - 角色天赋/被动没参与评分，只用了汇总后的当前属性。

@@ -8,8 +8,9 @@
   4. 同一函数里 var 不能重声明 —— Godot 3 一个函数只有一个作用域，
      if/for 里再声明同名变量是编译错误（写 advisor.gd 时真的踩过）
   5. 局部变量不能和脚本级 var/const 同名（shadow 警告，游戏若开了 warnings-as-errors 就崩）
-  6. 不能出现 Godot 4 专属写法（@export/@onready/class_name/super./is_empty()/TYPE_FLOAT/.slice(）
-     以及需要词边界的 TYPE_DICT（Godot 3 只有 TYPE_DICTIONARY）
+  6. 不能出现 Godot 4 专属写法（@export/@onready/class_name/super./is_empty()/TYPE_FLOAT）
+     以及需要词边界的 TYPE_DICT（Godot 3 只有 TYPE_DICTIONARY）；
+     3.5 没有的方法（如 Array.sub_array()）也在这里拦
 """
 import os
 import re
@@ -20,10 +21,12 @@ MOD = os.path.join(ROOT, "mod")
 
 GODOT4_TOKENS = [
     "@export", "@onready", "@export_node_path", "class_name ", "super.",
-    ".is_empty(", "TYPE_FLOAT", ".slice(", "@tool", "@icon",
+    ".is_empty(", "TYPE_FLOAT", "@tool", "@icon",
 ]
-# 需要词边界的：TYPE_DICTIONARY 才是 Godot 3 的写法，按字面量匹配会把它误判成 TYPE_DICT
-GODOT4_PATTERNS = [r"\bTYPE_DICT\b", r"\bTYPE_STRING_NAME\b", r"\bis_instance_of\("]
+# 需要词边界的：TYPE_DICTIONARY 才是 Godot 3 的写法，按字面量匹配会把它误判成 TYPE_DICT。
+# Array.sub_array() 在 3.5 不存在（已在 3.5.3 实测），想取前 N 项用 slice(0, N-1)（slice 的 end 是闭区间）。
+GODOT4_PATTERNS = [r"\bTYPE_DICT\b", r"\bTYPE_STRING_NAME\b", r"\bis_instance_of\(",
+                   r"\.sub_array\(", r"\bJSON\.new\(", r"\berror_string\("]
 
 VAR_RE = re.compile(r'^var\s+([A-Za-z_][A-Za-z0-9_]*)')
 FUNC_RE = re.compile(r'^func\s+([A-Za-z_][A-Za-z0-9_]*)')

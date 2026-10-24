@@ -341,17 +341,25 @@ def expected_top1(scores, k):
     return {"ok": True, "value": acc}
 
 
-def _exp_for(kind, tier, fp, k, player, priors, index, pools, dps_anchor):
+def _exp_for(kind, tier, fp, k, player, priors, index, pools, dps_anchor, floor=0.0, banned=None):
     ids = pools.get("{}|{}".format(tier, kind), [])
     if not ids:
         return {"ok": False, "value": 0.0}
-    ck = "{}|{}|{}".format(tier, kind, fp)
+    banned_key = ",".join(sorted(banned)) if banned else ""
+    ck = "{}|{}|{}|{}|{}|{}".format(tier, kind, fp, int(k), int(round(floor)), banned_key)
     if ck in _POOL_CACHE:
         return {"ok": True, "value": _POOL_CACHE[ck]}
     scores = []
     for i in ids:
+        if banned and i in banned:
+            continue
         u, dps_pct, _reasons, pen = score_item({"id": i, "kind": kind}, player, priors, index)
         scores.append(u + dps_pct * dps_anchor - pen)
+    if not scores:
+        return {"ok": False, "value": 0.0}
+    if floor > 0.0:
+        # 已锁的栏位不会被重掷，等价于每件新货的下限提高 floor
+        scores = [max(s, floor) for s in scores]
     top = expected_top1(scores, k)
     if top["ok"]:
         # 每次买完东西玩家指纹会变，长会话下不清会一直涨
@@ -362,23 +370,44 @@ def _exp_for(kind, tier, fp, k, player, priors, index, pools, dps_anchor):
 
 
 def expected_reroll_score(player, shop, priors, index, tier):
-    """重掷后的期望最高分：武器池/物品池各算 E[top1]，再按当前店的武器占比混合。
+    """重掷后的期望最高分。
+
+    新货来自「档位池」，构成只由先验 reroll_weapon_share 决定——不能用当前这家店
+    摆了几把武器来推，否则同一局面会因为展示不同得出不同的刷新建议。
+    k 是会被重掷的栏位数（总栏位减去已锁），已锁栏位保留，作为期望值的下限。
     池子拿不到返回 ok=False，调用方退回 tier_anchors 兜底。"""
     pools = _ensure_pools(index)
     if not pools:
         return {"ok": False, "value": 0.0}
     offers = shop.get("offers") or []
-    n_offers = len(offers)
-    k = n_offers if n_offers > 0 else 4
-    weapons = sum(1 for o in offers if o and (o.get("kind") or "") == "weapon")
-    w_share = (float(weapons) / float(n_offers)) if n_offers > 0 else 0.5
-    fp = player_fingerprint(player)
+    n_slots = len(offers) if offers else 4
+    locked_idx = set()
+    for x in (shop.get("locked") or []):
+        try:
+            i = int(x)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= i < n_slots:
+            locked_idx.add(i)
+    k = n_slots - len(locked_idx)
+    if k <= 0:
+        return {"ok": True, "value": 0.0}
     dps_anchor = num(priors.get("weapon_dps_anchor", 100.0))
+    floor = 0.0
+    for i in locked_idx:
+        o = offers[i] if i < len(offers) else None
+        if not o:
+            continue
+        u, dps_pct, _reasons, pen = score_item(o, player, priors, index)
+        floor = max(floor, u + dps_pct * dps_anchor - pen)
+    w_share = max(0.0, min(1.0, num(priors.get("reroll_weapon_share", 0.5))))
+    banned = set(str(x) for x in (player.get("banned_ids") or []))
+    fp = player_fingerprint(player)
     t = int(num(tier))
 
     parts = []
     for kind in ("weapon", "item"):
-        res = _exp_for(kind, t, fp, k, player, priors, index, pools, dps_anchor)
+        res = _exp_for(kind, t, fp, k, player, priors, index, pools, dps_anchor, floor, banned)
         if res["ok"]:
             parts.append((w_share if kind == "weapon" else 1.0 - w_share, res["value"]))
     if not parts:
@@ -411,9 +440,21 @@ def score_item(offer, player, priors, index=None):
         val = num(e.get("value", 0))
         if key.startswith("stat_"):
             stat_u += utility_from_stat_gain(key, val, player, priors)
+            continue
+        flat = priors.get("special_flat_keys", {})
+        weights = priors.get("special_keys", {})
+        if key in flat:
+            special_terms.append(num(flat[key]))
+        elif key in weights:
+            special_terms.append(val * num(weights[key]))
+        elif key == "":
+            # 参考表里这类效果没有键名（炮塔/地雷/召唤物），只能给一个统一的小额分
+            special_terms.append(bonus)
         else:
-            w = priors["special_keys"].get(key)
-            special_terms.append(bonus if w is None else val * w)
+            # 未登记的新键：按数值符号给分，负值不再被当成正向收益
+            cap_u = num(priors.get("special_unknown_cap", 3.0))
+            per = num(priors.get("special_unknown_per_point", 0.2))
+            special_terms.append(max(-cap_u, min(cap_u, val * per)))
     if not effects:
         special_terms = [bonus]
 
@@ -503,6 +544,18 @@ def _snapshot_after(player, offer, index=None, priors=None):
         for key, val in set_gain(ids, [new_id], index, set_first_count(priors or {})).items():
             p2["stats"][key] = num(p2["stats"].get(key, 0)) + val
         p2["weapon_ids"] = ids + [new_id]
+        # 新武器的 DPS 必须计入分母：否则第二把武器仍按买前的 total_dps 折算，
+        # 两把同水平武器会被各算一次「+100%」。
+        ref = (index or {}).get(new_id)
+        base = offer.get("base") or (ref.get("base") if ref else None) or {}
+        if base:
+            wtype = base.get("type") or (ref.get("weapon_type", "melee") if ref else "melee")
+            gain_dps = weapon_dps(dict(base, type=wtype), player, priors)
+            old_total = max(1.0, num(player.get("total_dps", 50.0)))
+            old_melee = num(player.get("melee_share", 0.5)) * old_total
+            new_total = old_total + gain_dps
+            p2["total_dps"] = new_total
+            p2["melee_share"] = (old_melee + (gain_dps if wtype == "melee" else 0.0)) / new_total
     return p2
 
 
@@ -594,11 +647,13 @@ def advise_shop(player, shop, priors, index=None):
                       "utility": round(s["utility"], 1), "dps_pct": round(s["dps_pct"], 1),
                       "price": round(s["price"], 1), "recommendation": rec, "reasons": reasons})
 
-    # 锁定免费：值得留下但不在本次购买组合里的，建议锁定（推荐买的那件不必锁）
+    # 锁定免费：值得留下但本次不买的，建议锁定（已经推荐购买的不必再锁，
+    # 免费件虽然不在 buy_set 里、但标签就是 buy，同样不能同时当锁）
     lock = None
     best_lock = None
+    rec_by_index = {s["index"]: items[i]["recommendation"] for i, s in enumerate(scored)}
     for s in scored:
-        if s.get("null") or s["index"] in picked:
+        if s.get("null") or rec_by_index.get(s["index"]) == "buy":
             continue
         if s["score"] < max(buy_thr, maybe_thr):
             continue

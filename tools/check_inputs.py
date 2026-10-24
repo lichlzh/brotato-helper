@@ -28,6 +28,8 @@ VARS = ("player", "shop", "offer", "other")
 SPONSORED = {
     ("player", "stats"): "STAT_KEYS",
     ("offer", "base"): "read_weapon_base / 参考表",
+    # 参考表里没有角色 ban 列表，采集侧暂时取不到；引擎支持该字段，缺省为空
+    ("player", "banned_ids"): "参考表/采集侧暂无 ban 列表",
 }
 
 

@@ -273,7 +273,7 @@ func set_hint(ids, add_id, index, first: int) -> String:
 			continue
 		if n > best_count:
 			best_count = n
-			best_name = str(getk(entry, "name_zh", ck))
+			best_name = str(getk(entry, "name_zh", rc))
 	if best_count == 0:
 		return ""
 	return "凑%s套（%d 件）" % [best_name, best_count]
@@ -302,12 +302,21 @@ func score_item(offer, player, priors, index) -> Array:
 			continue
 		if key.find("stat_") == 0:
 			stat_u += utility_from_stat_gain(key, val, player, priors)
+			continue
+		var flat = priors.get("special_flat_keys", {})
+		var special_keys = priors.get("special_keys", {})
+		if typeof(flat) == TYPE_DICTIONARY and flat.has(key):
+			special_terms.append(num(flat[key]))
+		elif typeof(special_keys) == TYPE_DICTIONARY and special_keys.has(key):
+			special_terms.append(val * num(special_keys[key]))
+		elif key == "":
+			# 参考表里这类效果没有键名（炮塔/地雷/召唤物），只能给一个统一的小额分
+			special_terms.append(bonus)
 		else:
-			var special_keys = priors.get("special_keys", {})
-			if typeof(special_keys) == TYPE_DICTIONARY and special_keys.has(key):
-				special_terms.append(val * num(special_keys[key]))
-			else:
-				special_terms.append(bonus)
+			# 未登记的新键：按数值符号给分，负值不再被当成正向收益
+			var cap_u := num(priors.get("special_unknown_cap", 3.0))
+			var per := num(priors.get("special_unknown_per_point", 0.2))
+			special_terms.append(max(-cap_u, min(cap_u, val * per)))
 	if effects.size() == 0:
 		special_terms = [bonus]
 
@@ -371,7 +380,7 @@ func score_item(offer, player, priors, index) -> Array:
 					names = index["_stat_names"]
 				stat_lines.append("%s%+d" % [str(names.get(key2, key2)), int(num(getk(e, "value", 0)))])
 	if stat_lines.size() > 0:
-		reasons.insert(0, PoolStringArray(stat_lines.sub_array(0, 3)).join("、"))
+		reasons.insert(0, PoolStringArray(stat_lines.slice(0, 2)).join("、"))
 	var hint := set_hint(getk(player, "weapon_ids", []), getk(offer, "id", ""), index, first)
 	if hint != "":
 		reasons.append(hint)
@@ -461,29 +470,49 @@ func expected_top1(scores: Array, k: int) -> Dictionary:
 
 
 func expected_reroll_score(player, shop, priors, index, tier) -> Dictionary:
-	# 重掷后的期望最高分：武器池/物品池各算 E[top1]，再按当前店的武器占比混合
+	# 重掷后的期望最高分。新货来自「档位池」，构成只由 reroll_weapon_share 决定，
+	# 不能用当前这家店摆了几把武器来推。k = 会被重掷的栏位数（总栏位减去已锁）；
+	# 已锁栏位保留，作为期望值的下限。
 	var pools = ensure_pools(index)
 	if pools == null or pools.size() == 0:
 		return {"ok": false, "value": 0.0}
 	var offers = getk(shop, "offers", [])
-	var n_offers = offers.size()
-	var k = 4
-	if n_offers > 0:
-		k = n_offers
-	var weapons = 0
-	for o in offers:
-		if o != null and str(getk(o, "kind", "")) == "weapon":
-			weapons += 1
-	var w_share := 0.5
-	if n_offers > 0:
-		w_share = float(weapons) / float(n_offers)
-	var fp := player_fingerprint(player)
+	var n_slots := 4
+	if typeof(offers) == TYPE_ARRAY and offers.size() > 0:
+		n_slots = offers.size()
+	var locked_idx := {}
+	var locked = getk(shop, "locked", [])
+	if typeof(locked) == TYPE_ARRAY:
+		for x in locked:
+			var li := int(num(x, -1))
+			if li >= 0 and li < n_slots:
+				locked_idx[li] = true
+	var k := n_slots - locked_idx.size()
+	if k <= 0:
+		return {"ok": true, "value": 0.0}
 	var dps_anchor := num(priors.get("weapon_dps_anchor", 100.0))
+	var floor_score := 0.0
+	for li in locked_idx.keys():
+		if typeof(offers) != TYPE_ARRAY or li >= offers.size():
+			continue
+		var o = offers[li]
+		if o == null:
+			continue
+		var lr = score_item(o, player, priors, index)
+		floor_score = max(floor_score, float(lr[0]) + float(lr[1]) * dps_anchor - float(lr[3]))
+	var w_share := num(priors.get("reroll_weapon_share", 0.5))
+	w_share = max(0.0, min(1.0, w_share))
+	var banned := {}
+	var bl = getk(player, "banned_ids", [])
+	if typeof(bl) == TYPE_ARRAY:
+		for b in bl:
+			banned[str(b)] = true
+	var fp := player_fingerprint(player)
 	var t = int(num(tier))
 
 	var parts := []
 	for kind in ["weapon", "item"]:
-		var res = _exp_for(kind, t, fp, k, player, priors, index, pools, dps_anchor)
+		var res = _exp_for(kind, t, fp, k, player, priors, index, pools, dps_anchor, floor_score, banned)
 		if res["ok"]:
 			parts.append([w_share if kind == "weapon" else 1.0 - w_share, res["value"]])
 	if parts.size() == 0:
@@ -499,17 +528,32 @@ func expected_reroll_score(player, shop, priors, index, tier) -> Dictionary:
 	return {"ok": true, "value": acc / total_w}
 
 
-func _exp_for(kind, tier, fp, k, player, priors, index, pools, dps_anchor) -> Dictionary:
+func _exp_for(kind, tier, fp, k, player, priors, index, pools, dps_anchor, floor_score = 0.0, banned = null) -> Dictionary:
 	var ids = pools.get("%d|%s" % [tier, kind], [])
 	if ids.size() == 0:
 		return {"ok": false, "value": 0.0}
-	var ck = "%d|%s|%s" % [tier, kind, fp]
+	var banned_key := ""
+	if typeof(banned) == TYPE_DICTIONARY:
+		var bl := []
+		for bk in banned.keys():
+			bl.append(str(bk))
+		bl.sort()
+		banned_key = PoolStringArray(bl).join(",")
+	var ck = "%d|%s|%s|%d|%d|%s" % [tier, kind, fp, int(k), int(round(floor_score)), banned_key]
 	if _pool_cache.has(ck):
 		return {"ok": true, "value": _pool_cache[ck]}
 	var scores := []
 	for id in ids:
+		if typeof(banned) == TYPE_DICTIONARY and banned.has(str(id)):
+			continue
 		var res = score_item({"id": id, "kind": kind}, player, priors, index)
 		scores.append(res[0] + res[1] * dps_anchor - res[3])
+	if scores.size() == 0:
+		return {"ok": false, "value": 0.0}
+	if floor_score > 0.0:
+		# 已锁的栏位不会被重掷，等价于每件新货的下限提高 floor_score
+		for si in range(scores.size()):
+			scores[si] = max(float(scores[si]), floor_score)
 	var top = expected_top1(scores, k)
 	if top["ok"]:
 		# 每次买完东西玩家指纹会变，长会话下不清会一直涨
@@ -570,6 +614,24 @@ func snapshot_after(player, offer, index = null, priors = null):
 			stats[str(gk)] = num(stats.get(str(gk), 0)) + float(gain[gk])
 		nxt.append(new_id)
 		p2["weapon_ids"] = nxt
+		# 新武器的 DPS 必须计入分母：否则第二把武器仍按买前的 total_dps 折算，
+		# 两把同水平武器会被各算一次「+100%」。
+		var ref = index.get(new_id) if typeof(index) == TYPE_DICTIONARY else null
+		var base = getk(offer, "base", null)
+		if base == null and ref != null:
+			base = getk(ref, "base", null)
+		if typeof(base) == TYPE_DICTIONARY and base.size() > 0:
+			var wtype = str(base.get("type", ""))
+			if wtype == "":
+				wtype = str(getk(ref, "weapon_type", "melee")) if ref != null else "melee"
+			var merged = base.duplicate(true)
+			merged["type"] = wtype
+			var gain_dps := weapon_dps(merged, player)
+			var old_total := max(1.0, num(getk(player, "total_dps", 50.0)))
+			var old_melee := num(getk(player, "melee_share", 0.5)) * old_total
+			var new_total := old_total + gain_dps
+			p2["total_dps"] = new_total
+			p2["melee_share"] = (old_melee + (gain_dps if wtype == "melee" else 0.0)) / new_total
 	return p2
 
 
@@ -606,7 +668,7 @@ func cart_value(cart, player, priors, index, dps_anchor) -> float:
 func choose_buy_set(cart_items, budget, player, priors, index, dps_anchor) -> Dictionary:
 	# 预算内挑组合价值最高的（穷举 2^n）；同价值选花钱少的，留现金给刷新/下波
 	# n 上限 8：商店正常只有 4 栏，8 件已经要 256×8 次打分，GDScript 里会卡
-	var n := cart_items.size()
+	var n = cart_items.size()
 	if n > 8:
 		n = 8
 	var best_indices := []
@@ -707,11 +769,15 @@ func advise_shop(player, shop, priors, index) -> Dictionary:
 				"dps_pct": _r1(num(s["dps_pct"])), "price": _r1(num(s["price"])),
 				"recommendation": rec, "reasons": reasons})
 
-	# 锁定免费：值得留下但不在本次购买组合里的，建议锁定（推荐买的那件不必锁）
+	# 锁定免费：值得留下但本次不买的，建议锁定（已经推荐购买的不必再锁，
+	# 免费件虽然不在 buy_set 里、但标签就是 buy，同样不能同时当锁）
 	var lock = null
 	var best_lock = null
+	var rec_by_index := {}
+	for i in range(scored.size()):
+		rec_by_index[int(scored[i]["index"])] = str(items[i]["recommendation"])
 	for s in scored:
-		if bool(getk(s, "null", false)) or picked.has(int(s["index"])):
+		if bool(getk(s, "null", false)) or str(rec_by_index.get(int(s["index"]), "skip")) == "buy":
 			continue
 		if num(s["score"]) < max(buy_thr, maybe_thr):
 			continue

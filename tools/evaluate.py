@@ -4,8 +4,9 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from advisor import (advise_shop, build_index, comb, default_priors, expected_top1,
-                     load_json, num, set_first_count, set_gain, weapon_dps)
+from advisor import (_snapshot_after, advise_shop, build_index, comb, default_priors,
+                     expected_reroll_score, expected_top1, load_json, num,
+                     reset_pool_cache, score_item, set_first_count, set_gain, weapon_dps)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PRIORS = default_priors()
@@ -36,6 +37,102 @@ def self_test_math():
             got = expected_top1(scores, k)["value"]
             assert abs(got - brute) < 1e-9, (scores, k, got, brute)
     return True
+
+
+def self_test_snapshot(index):
+    """组合内买第二把武器时，分母必须变大：否则第二把仍按买前的 total_dps 折算，
+    两把同水平武器会被各算一次「+100%」，组合选组会系统性偏好堆武器。"""
+    player = {"wave": 5, "gold": 100, "danger": 0, "total_dps": 1000.0, "melee_share": 1.0,
+              "stats": {"stat_max_hp": 100, "stat_melee_damage": 0},
+              "weapon_ids": ["weapon_fist_1"]}
+    base = {"damage": 100, "cooldown": 60, "type": "melee"}
+    offer = {"id": "weapon_fist_1", "kind": "weapon", "effects": [], "base": base}
+    gain = weapon_dps(dict(base), player, PRIORS)
+    snap = _snapshot_after(player, offer, index, PRIORS)
+    assert abs(snap["total_dps"] - (1000.0 + gain)) < 1e-6, snap["total_dps"]
+    assert abs(snap["melee_share"] - 1.0) < 1e-9, snap["melee_share"]
+    _, first, _, _ = score_item(offer, player, PRIORS, index)
+    _, second, _, _ = score_item(offer, snap, PRIORS, index)
+    assert abs(second - gain / (1000.0 + gain)) < 1e-9, (first, second)
+    assert second < first * 0.6, "第二把武器没按买后总 DPS 折算: %s -> %s" % (first, second)
+    # 买远程武器要把 melee_share 拉低（决定下一件武器是否算「异流派」）
+    ranged = {"id": "weapon_fist_1", "kind": "weapon", "effects": [],
+              "base": {"damage": 100, "cooldown": 60, "type": "ranged"}}
+    snap2 = _snapshot_after(player, ranged, index, PRIORS)
+    assert abs(snap2["melee_share"] - 1000.0 / (1000.0 + gain)) < 1e-6, snap2["melee_share"]
+
+
+def self_test_reroll(index):
+    """刷新期望必须只由局面决定，与「当前店恰好摆了什么」无关；
+    k 是未锁栏位数，已锁栏位作为下限保留。"""
+    player = {"wave": 8, "gold": 50, "danger": 1, "total_dps": 120.0, "melee_share": 0.6,
+              "stats": {"stat_max_hp": 100, "stat_armor": 2, "stat_melee_damage": 10},
+              "weapon_ids": ["weapon_fist_1"]}
+    weapons = [{"id": "weapon_fist_1", "kind": "weapon", "price": 10},
+               {"id": "weapon_revolver_1", "kind": "weapon", "price": 20},
+               {"id": "weapon_knife_1", "kind": "weapon", "price": 15},
+               {"id": "weapon_slingshot_1", "kind": "weapon", "price": 15}]
+    items = [{"id": "item_metal_plate", "kind": "item", "price": 40},
+             {"id": "item_medical_woofer", "kind": "item", "price": 40},
+             {"id": "item_barricade", "kind": "item", "price": 75},
+             {"id": "item_white_flag", "kind": "item", "price": 40}]
+    shops = [{"tier": 2, "offers": weapons}, {"tier": 2, "offers": items},
+             {"tier": 2, "offers": weapons[:2] + items[:2]}]
+    vals = []
+    for s in shops:
+        reset_pool_cache()
+        r = expected_reroll_score(player, s, PRIORS, index, 2)
+        assert r["ok"], "池子缺失，期望不可用"
+        vals.append(r["value"])
+    assert max(vals) - min(vals) < 1e-9, "刷新期望仍随展示构成变化: %s" % (vals,)
+
+    # 全锁 → 没有会被重掷的栏位
+    reset_pool_cache()
+    r = expected_reroll_score(player, {"tier": 2, "offers": weapons, "locked": [0, 1, 2, 3]},
+                              PRIORS, index, 2)
+    assert r["ok"] and abs(r["value"]) < 1e-9, r
+
+    # 锁住一件远超池子的货：期望被它托住，等于它的分数
+    huge = {"id": "item_test_huge", "kind": "item", "price": 40,
+            "effects": [{"key": "stat_max_hp", "value": 100000}]}
+    u, dps_pct, _r, pen = score_item(huge, player, PRIORS, index)
+    huge_score = u + dps_pct * num(PRIORS.get("weapon_dps_anchor", 100.0)) - pen
+    offers = [huge] + items[1:]
+    reset_pool_cache()
+    r_locked = expected_reroll_score(player, {"tier": 2, "offers": offers, "locked": [0]},
+                                     PRIORS, index, 2)
+    assert abs(r_locked["value"] - huge_score) < 1e-6, (r_locked["value"], huge_score)
+
+    # 可重掷栏位越多，期望越高（否则 k 没接上）
+    reset_pool_cache()
+    v2 = expected_reroll_score(player, {"tier": 2, "offers": weapons, "locked": [0, 1]},
+                               PRIORS, index, 2)["value"]
+    reset_pool_cache()
+    v4 = expected_reroll_score(player, {"tier": 2, "offers": weapons}, PRIORS, index, 2)["value"]
+    assert v4 >= v2 - 1e-9, (v2, v4)
+
+
+def self_test_special(index):
+    """特殊效果的方向与兜底：值越大越糟的键必须给负分，未登记键按符号封顶，
+    标记类效果（值恒为 0）用固定分。方向写反时用例可能仍然全绿，所以单独钉住。"""
+    player = {"wave": 5, "gold": 50, "danger": 0,
+              "stats": {"stat_max_hp": 100}, "weapon_ids": []}
+
+    def u(effects):
+        return score_item({"id": "item_selftest", "kind": "item", "effects": effects},
+                          player, PRIORS, index)[0]
+
+    assert u([{"key": "enemy_health", "value": 10}]) < 0, "敌人血量增加被当成好事"
+    assert u([{"key": "items_price", "value": -5}]) > 0, "商品降价被当成坏事"
+    assert u([{"key": "lose_hp_per_second", "value": 3}]) < 0, "持续掉血被当成好事"
+    assert u([{"key": "number_of_enemies", "value": -5}]) > 0, "敌人减少被当成坏事"
+    assert u([{"key": "consumable_heal", "value": -1}]) < 0
+    cap = num(PRIORS.get("special_unknown_cap", 3.0))
+    assert abs(u([{"key": "future_key", "value": 1000}]) - cap) < 1e-9
+    assert abs(u([{"key": "future_key", "value": -1000}]) + cap) < 1e-9
+    assert abs(u([{"key": "future_key", "value": 0}])) < 1e-9
+    flat = u([{"key": "effect_burning", "value": 0}])
+    assert flat > 0 and abs(flat - u([{"key": "effect_burning", "value": 99}])) < 1e-9
 
 
 def enrich_player(player, index):
@@ -71,8 +168,16 @@ def check_invariants(result, case_name):
     errs = []
     items = result["items"]
     buy_set = set(result.get("buy_set", []))
-    if result.get("spend", 0.0) > result.get("budget", 0.0) + 1e-6:
-        errs.append("超预算: spend={} > budget={}".format(result["spend"], result["budget"]))
+    budget = num(result.get("budget", 0.0))
+    spend = num(result.get("spend", 0.0))
+    if spend > budget + 1e-6:
+        errs.append("超预算: spend={} > budget={}".format(spend, budget))
+    if abs(spend - sum(items[i]["price"] for i in buy_set)) > 1e-6:
+        errs.append("spend={} 与 buy_set 价格之和不等".format(spend))
+    if "left" in result and abs(num(result["left"]) - (budget - spend)) > 1e-6:
+        errs.append("left={} != budget - spend".format(result["left"]))
+    if len(buy_set) != len(result.get("buy_set", [])):
+        errs.append("buy_set 有重复栏位")
     for i, it in enumerate(items):
         if it["recommendation"] == "buy" and it["price"] > 0 and i not in buy_set:
             errs.append("slot{} 标 buy 但不在 buy_set".format(i))
@@ -80,11 +185,20 @@ def check_invariants(result, case_name):
             errs.append("slot{} 既建议买又建议锁".format(i))
         if it["recommendation"] == "maybe" and i not in buy_set:
             errs.append("slot{} 标 maybe 但不在 buy_set".format(i))
-        if i in buy_set and it["price"] > result.get("budget", 0.0):
+        if i in buy_set and it["recommendation"] not in ("buy", "maybe"):
+            errs.append("slot{} 在 buy_set 里但标签是 {}".format(i, it["recommendation"]))
+        if i in buy_set and it["price"] > budget:
             errs.append("slot{} 单价 {} 超过总预算".format(i, it["price"]))
     lock = result.get("lock")
-    if lock is not None and lock["index"] in buy_set:
-        errs.append("lock 指向推荐购买的那件")
+    if lock is not None:
+        li = lock["index"]
+        if li in buy_set:
+            errs.append("lock 指向推荐购买的那件")
+        # 免费件标签就是 buy，但不在 buy_set 里——这条专门堵旧实现漏掉的那种
+        if 0 <= li < len(items) and items[li]["recommendation"] == "buy":
+            errs.append("lock 指向标签为 buy 的栏位（含免费件）")
+        if 0 <= li < len(items) and items[li]["recommendation"] != "lock":
+            errs.append("lock 指向的栏位标签是 {}".format(items[li]["recommendation"]))
     return errs
 
 
@@ -129,6 +243,9 @@ def run(path=None):
     index = build_index(refdata)
     index["_stat_names"] = {k.lower(): v for k, v in refdata.get("stat_names", {}).items()}
     self_test_sets(index)
+    self_test_snapshot(index)
+    self_test_reroll(index)
+    self_test_special(index)
     cases = load_json(path)
     ok = 0
     for case in cases:

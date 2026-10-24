@@ -25,7 +25,7 @@ Timer(0.6s) 或 游戏调 update_buttons_color()
   → shop_items_container._adv_on_tick / update_advisor
       1. 遍历 _shop_items，收集 ShopItem 节点 + 拼局面签名
       2. 签名没变 → 直接 return（组合选择要穷举子集，白算会掉帧）
-      3. hub.advise(RunData, player_index, offers, reroll_cost, tier)
+      3. hub.advise(RunData, player_index, offers, reroll_cost, tier, locked_indices)
            ├─ collector.collect_player(...)  → player 字典（含 probes 记录）
            ├─ collector.collect_offer(...)   → 每个栏位的 offer 字典
            ├─ advisor.advise_shop(player, shop, priors, index) → 结果字典
@@ -50,27 +50,31 @@ Timer(0.6s) 或 游戏调 update_buttons_color()
 | `mod/extensions/.../shop_item.gd` | 惰性创建/更新角标 Label | 自己算分 |
 | `tools/advisor.py` | 上面 `advisor.gd` 的**同构参考实现**，本机唯一可运行的核心 | — |
 | `tools/*.py` | 数据抓取、回归、静态检查、标定、诊断摄取 | 运行时依赖（mod 不读 tools/） |
-| `tests/cases.json` | 16 个典型局面 + 期望标签 + 阈值距离 | — |
+| `tests/cases.json` | 21 个典型局面 + 期望标签 + 阈值距离 | — |
 
 `advisor.gd` 保持「纯 Dictionary/Array」是整套可测性的前提：它没有一处 `RunData`、`Node`、`get_node`，
 所以 Python 侧可以逐行同构复刻，静态检查才能比对两边。
 
 ## 3. 双实现策略与防漂移
 
-本机没有 Godot 3，GDScript 无法编译，更无法运行。核心逻辑因此写两遍：
+核心逻辑写两遍：
 
 - `tools/advisor.py` —— 用来跑回归、标定、`ingest_debug` 生成候选用例；
 - `mod/scripts/advisor.gd` —— 游戏里真正执行的那份。
 
-两份是**手工同构**（函数名、分支顺序、常数都对应），靠三道静态检查拦漂移，都在 `build.sh` 里：
+两份是**手工同构**（函数名、分支顺序、常数都对应），靠三道静态检查拦漂移，再加一道可选的真跑差分，都在 `build.sh` 里：
 
 | 检查 | 比什么 | 拦住的事故 |
 | --- | --- | --- |
 | `check_parity.py` | 两边出现的 `stat_*` 键集合；`priors.get("…")` 键集合；顶层函数名集合（有单边白名单 `_PY_ONLY` / `_GD_ONLY` / `_RENAMED`）；`advise_shop` 返回值与每栏位结果的字典字面量键集合 | 改了 Python 忘了 GDScript；改了一边的输出字段（UI 会静默读到默认值） |
 | `check_gd.py` | tab 缩进、括号配对、`func` 重名、同函数内 `var` 重声明、局部变量遮蔽脚本级成员、Godot 4 专属写法、`TYPE_DICT` | 写错直接编译失败的语法 |
 | `check_inputs.py` | `advisor.py` 读的字段 == `advisor.gd` 读的字段，且这些字段被 `state_collector.gd` / `shop_items_container.gd` 真的产出 | 引擎新读一个字段、用例里手写了、游戏里根本取不到（线上只会静默退回默认值，用例永远发现不了） |
+| `check_gd_diff.py` | 用 Godot 3 无头模式跑 `gd_runner.gd`，把 `tests/cases.json` 喂给两边，逐字段比 recommendation / score / lock / buy_set / spend / left / reroll / reroll_margin / thresholds；同时编译 `shop_advisor.gd` / `state_collector.gd` 并实跑一次 JSON 读取 | 公式写对了名字、写错了符号或分支顺序；只在 Godot 3 里才暴露的 API 误用（`JSON.new()`、`error_string()`、`sub_array()` 等） |
 
-第四道是行为回归：`evaluate.py`（16 个用例 + 不变量 + 套装数学对拍 + 期望公式对拍）。
+`check_gd_diff.py` 通过 `GODOT3_BIN` / PATH / 常见安装路径找 Godot 3；找不到时打印 SKIP 并以 0 退出
+（本机没有游戏也能打包），找到非 3.x 版本会拒绝执行（Godot 4 跑不了 GDScript 3）。
+
+行为回归是 `evaluate.py`（21 个用例 + 不变量 + 套装数学对拍 + 期望公式对拍）。
 
 ## 4. Godot 3 / GDScript 3 的硬约束（都踩过或是真实编译错误）
 
@@ -93,6 +97,11 @@ Brotato 是 **Godot 3.x** 游戏，Mod 只能写 GDScript 3。下面这些是本
 | `super` 调用靠 `_adv_busy` 防递归 | 父脚本内部再调 `update_buttons_color()` 会派发到我们的版本，形成无限递归 |
 | 不覆盖 `_ready` | 父脚本有没有 `_ready` 不确定，覆盖会打断游戏自身的初始化；角标改成第一次收到建议时惰性创建 |
 | `:=` 不要用在 Variant 表达式上 | 类型推断不出来会警告，游戏若开了 warnings-as-errors 就崩 |
+| `JSON` 是单例，没有 `JSON.new()` | 用 `JSON.parse(txt)` 拿 `JSONParseResult`；它的 `error_string` 只能 `.get("error_string")` 动态读，直接点号会被静态检查拒绝 |
+| 没有全局 `error_string()` | 那是 Godot 4 的 API，3.x 用 `str(err)` |
+| `Array.slice(begin, end)` 的 `end` 是**闭区间** | 取前 3 项写 `slice(0, 2)`；3.5 没有 `sub_array()` |
+| `ProjectSettings.get_setting()` 只收一个参数 | 没有默认值重载，先用 `has_setting()` 判断 |
+| `floor` / `ceil` 等内置函数名不能当变量名 | `var floor := 0.0` 是解析错误，改写 `floor_score` |
 
 `check_gd.py` 把其中可静态检出的部分变成打包前置条件。
 
@@ -103,7 +112,9 @@ Brotato 是 **Godot 3.x** 游戏，Mod 只能写 GDScript 3。下面这些是本
 → 直接属性 → `RunData.effects` 字典 → `RunData.player_run_data.stats`；
 `shop_items_container._adv_gold` 优先 `RunData.get_player_gold(i)`（合作模式下 `RunData.gold` 不是本玩家的钱），
 退回 `RunData.gold` / `money`；`_adv_shop_tier` 优先 `ItemService.get_tier_from_wave(wave)`，
-退回内置「波次 → 档位」表。
+退回内置「波次 → 档位」表；`collector.read_cursed` 探测 ShopItem / item_data / 参考表的诅咒标记；
+`_adv_is_locked` 探测 ShopItem 的 `locked` / `is_locked` / `lock`，再探 item_data。
+每条途径的命中结果都写进 probes（键名如 `cursed`、`locked`、`rerolls`、`tier`、`gold`）。
 
 设计意图：游戏大版本更新改了内部结构时，**最坏结果是建议变粗糙或不显示，不会崩游戏、不会碰存档**。
 代价是「猜错的途径」在本机不可见 —— 所以 probes 会随诊断文件落盘，只有 `probes` 里出现「没找到」「兜底」
@@ -139,8 +150,9 @@ result                                          打分与建议
 ```
 player = {wave, gold, danger,
           stats{stat_*: float},          # 键集合由 collector 的 STAT_KEYS 提供
-          weapon_ids[], total_dps, melee_share}
-shop   = {tier, reroll_cost,
+          weapon_ids[], total_dps, melee_share,
+          banned_ids[]}                  # 可选；参考表/采集侧暂无 ban 列表，缺省不过滤
+shop   = {tier, reroll_cost, locked[],   # locked = 已锁定、重掷时不会被替换的栏位下标
           offers[{id, name, kind, price, cursed, effects[{key,value}],
                   base{damage, cooldown, scaling, type}}]}   # base 可由参考表兜底
 ```
@@ -163,18 +175,22 @@ shop   = {tier, reroll_cost,
 `build.sh` 的顺序就是它的 gate 链，任何一步失败都不出包：
 
 ```
-check_parity.py     py/gd 同构（stats / priors 键 / 函数名集合 / 输出字段）
-check_gd.py         GDScript 结构体检
-check_inputs.py     输入契约（读的字段 == 产出的字段）
-calibrate.py --check 标定守卫：已采用的 stat_weight_adj 方向是否仍与当前数据拟合一致
-evaluate.py         16 用例 + 不变量 + 套装数学 + 期望公式对拍
+check_parity.py        py/gd 同构（stats / priors 键 / 函数名集合 / 输出字段）
+check_gd.py            GDScript 结构体检
+check_special_coverage.py  非属性效果键必须显式分类 + 方向抽查
+check_inputs.py        输入契约（读的字段 == 产出的字段）
+calibrate.py --check   标定守卫：已采用的 stat_weight_adj 方向是否仍与当前数据拟合一致
+evaluate.py            21 用例 + 不变量 + 套装数学 + 期望公式对拍
+check_gd_diff.py       Godot 3 无头差分（找不到 Godot 3 时 SKIP）
 ingest_debug.py --selftest
 JSON 校验 + 必备文件清单
 zip → dist/BrotatoHelper-ShopAdvisor.zip（根目录直接是 manifest.json / mod_main.gd）
 ```
 
 `evaluate.py` 除了标签断言还校验**不变量**（`check_invariants`，不写进用例也不该被破坏）：
-不超预算；标 `buy`/`maybe` 的件都在 `buy_set` 里；`lock` 不指向推荐购买的那件；`buy_set` 里没有单件超过总预算的。
+不超预算；`spend` 等于 `buy_set` 价格之和、`left = budget − spend`；`buy_set` 无重复且每件的标签是
+`buy`/`maybe`；标 `buy`/`maybe` 的件都在 `buy_set` 里；`lock` 不在 `buy_set` 里，且它指向的栏位标签必须是
+`lock`（因此免费件即使分数再高也不会同时被标 `buy` 和 `lock`）。
 
 ### 阈值距离断言
 
@@ -198,7 +214,8 @@ zip → dist/BrotatoHelper-ShopAdvisor.zip（根目录直接是 manifest.json / 
 
 - 局面签名（玩家序号 + 每件 id@价格 + 刷价 + 档位 + 金钱）没变就不重算；
 - 0.6s 自建 Timer，且只在 `is_visible_in_tree()` 时跑，不覆盖游戏的 `_process`；
-- 档位池期望按 `tier|kind` 建倒排并缓存，缓存键含 `player_fingerprint`（影响打分的玩家字段），局面变了自动失效；
+- 档位池期望按 `tier|kind` 建倒排并缓存，缓存键含 `player_fingerprint`、抽件数 `k`、已锁件下限 `floor` 和
+  `banned` 集合，任一变化自动失效；
 - 组合穷举限制 n ≤ 8（8 件已是 256×8 次打分，GDScript 里会卡），商店正常 4 栏；
 - 角标惰性创建，`mouse_filter = MOUSE_FILTER_IGNORE` + `z_index 4090`，不挡点击也不参与布局。
 
@@ -226,5 +243,8 @@ zip → dist/BrotatoHelper-ShopAdvisor.zip（根目录直接是 manifest.json / 
 - 两份实现的同步靠静态检查，不是单源生成。改成 codegen 的成本高于目前收益（曲线形状多、可读性优先）。
 - `expected_reroll_factor` 兜底路径与档位池期望并存，前者只在参考数据加载失败时生效。
 - 组合值是「按独立分降序固定累加边际」的近似，不是全排列最优。
-- 免费件（price 0）恒标 `buy` 且不进预算选择器 —— 若以后出现「免费但有害」的来源，需要在这里加判断。
+- 免费件（price 0）恒标 `buy` 且不进预算选择器；锁定选择已显式跳过所有标 `buy` 的件 ——
+  若以后出现「免费但有害」的来源，需要在这里加判断。
+- 刷新期望用固定的 `reroll_weapon_share` 混合武器/物品池，而真实商店的构成可能偏离这个比例；
+  `banned_ids` 的过滤依赖上游提供 ban 列表，目前采集侧还没有。
 - 待办 #8（怪物构成 / 天赋 / ban 列表参与评分）阻塞在真实字段清单上，机制已就绪（`inventory` 落盘 + `ingest_debug`）。

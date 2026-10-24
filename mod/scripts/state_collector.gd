@@ -166,12 +166,25 @@ func collect_offer(shop_item, index) -> Dictionary:
 		"kind": kind,
 		"price": float(price),
 		"tier": tier,
-		"cursed": false,
+		"cursed": read_cursed(shop_item, item_data, ref),
 		"effects": effects,
 	}
 	if kind == "weapon":
 		offer["base"] = read_weapon_base(item_data, ref)
 	return offer
+
+
+func read_cursed(shop_item, item_data, ref) -> bool:
+	# 诅咒标记的字段名本机无从验证：ShopItem / item_data / 参考表依次试，
+	# 命中哪个就记进 probes，进游戏看一次诊断文件即可确认。
+	for spec in [[shop_item, "cursed"], [shop_item, "is_cursed"], [item_data, "cursed"],
+			[item_data, "is_cursed"], [ref, "cursed"]]:
+		var v = getk(spec[0], spec[1], null)
+		if v != null:
+			probes["cursed"] = "%s.%s=%s" % [str(spec[0]), spec[1], str(v)]
+			return bool(v)
+	probes["cursed"] = "未找到字段，按非诅咒处理"
+	return false
 
 
 func weapon_base_ref(base_id: String, index) -> String:
