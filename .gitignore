@@ -1,0 +1,12 @@
+# 打包产物（./build.sh 生成）
+dist/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 从游戏里取回的诊断落盘（shopadvisor_debug_w*.json），属于个人数据，不入库
+game_dumps/
+
+# ingest_debug.py 的中间产物：候选用例要人核对过才并进 tests/cases.json
+tests/cases_from_game.json

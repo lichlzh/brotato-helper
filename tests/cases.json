@@ -1,0 +1,991 @@
+[
+ {
+  "name": "c1 早期近战士：好武器买、异流派弱武器凑合、拳顺手",
+  "player": {
+   "wave": 2,
+   "gold": 60,
+   "danger": 0,
+   "character_id": "character_generalist",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 0,
+    "stat_melee_damage": 0,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 0,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 0,
+    "stat_dodge": 0,
+    "stat_luck": 0,
+    "stat_speed": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 0,
+   "reroll_cost": 1,
+   "offers": [
+    {
+     "id": "weapon_slingshot_1",
+     "name": "弹弓",
+     "kind": "weapon",
+     "price": 15
+    },
+    {
+     "id": "weapon_revolver_1",
+     "name": "左轮手枪",
+     "kind": "weapon",
+     "price": 20
+    },
+    {
+     "id": "weapon_fist_1",
+     "name": "拳",
+     "kind": "weapon",
+     "price": 10
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "maybe",
+     "margin": 3.0
+    },
+    {
+     "index": 1,
+     "recommendation": "buy",
+     "margin": 28.0
+    }
+   ]
+  }
+ },
+ {
+  "name": "c2 医生低血：回血件与金属板都不值得",
+  "player": {
+   "wave": 8,
+   "gold": 80,
+   "danger": 1,
+   "character_id": "character_doctor",
+   "stats": {
+    "stat_max_hp": 30,
+    "stat_armor": 5,
+    "stat_melee_damage": 20,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 10,
+    "stat_dodge": 0,
+    "stat_luck": 0,
+    "stat_speed": 0,
+    "stat_hp_regeneration": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 1,
+   "reroll_cost": 5,
+   "offers": [
+    {
+     "id": "item_medical_woofer",
+     "name": "医疗音箱",
+     "kind": "item",
+     "price": 40,
+     "effects": [
+      {
+       "key": "stat_hp_regeneration",
+       "value": 5
+      }
+     ]
+    },
+    {
+     "id": "item_metal_plate",
+     "name": "金属板",
+     "kind": "item",
+     "price": 40,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 2
+      },
+      {
+       "key": "stat_percent_damage",
+       "value": -3
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "skip",
+     "margin": -7.0
+    },
+    {
+     "index": 1,
+     "recommendation": "skip",
+     "margin": -10.1
+    }
+   ],
+   "reroll_margin": 23.8
+  }
+ },
+ {
+  "name": "c3 第20波前：高护甲路障买、负甲不买",
+  "player": {
+   "wave": 19,
+   "gold": 150,
+   "danger": 2,
+   "character_id": "character_soldier",
+   "stats": {
+    "stat_max_hp": 120,
+    "stat_armor": 10,
+    "stat_melee_damage": 60,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 20,
+    "stat_crit_chance": 10,
+    "stat_percent_damage": 30,
+    "stat_dodge": 5,
+    "stat_luck": 5,
+    "stat_speed": 10
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1",
+    "weapon_chainsaw_3"
+   ]
+  },
+  "shop": {
+   "tier": 2,
+   "reroll_cost": 10,
+   "offers": [
+    {
+     "id": "item_barricade",
+     "name": "路障",
+     "kind": "item",
+     "price": 75
+    },
+    {
+     "id": "item_community_support",
+     "name": "社区支持",
+     "kind": "item",
+     "price": 75
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "buy",
+     "margin": 50.7
+    },
+    {
+     "index": 1,
+     "recommendation": "skip",
+     "margin": -47.7
+    }
+   ],
+   "reroll": "no"
+  }
+ },
+ {
+  "name": "c4 负重已满：第6把武器不推荐",
+  "player": {
+   "wave": 10,
+   "gold": 100,
+   "danger": 1,
+   "character_id": "character_multitasker",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 5,
+    "stat_melee_damage": 30,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 15,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 15,
+    "stat_dodge": 0,
+    "stat_luck": 10,
+    "stat_speed": 5
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1",
+    "weapon_fist_1",
+    "weapon_knife_1",
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 0,
+   "reroll_cost": 7,
+   "offers": [
+    {
+     "id": "weapon_knife_1",
+     "name": "小刀",
+     "kind": "weapon",
+     "price": 20
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "skip",
+     "margin": -7.4
+    }
+   ],
+   "reroll_margin": -5.6
+  }
+ },
+ {
+  "name": "c5 远程流：远程伤害核心件买、近战件不买",
+  "player": {
+   "wave": 10,
+   "gold": 120,
+   "danger": 1,
+   "character_id": "character_hunter",
+   "stats": {
+    "stat_max_hp": 90,
+    "stat_armor": 0,
+    "stat_melee_damage": 0,
+    "stat_ranged_damage": 50,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 15,
+    "stat_percent_damage": 10,
+    "stat_dodge": 10,
+    "stat_luck": 5,
+    "stat_speed": 10
+   },
+   "weapon_ids": [
+    "weapon_pistol_1",
+    "weapon_revolver_1"
+   ]
+  },
+  "shop": {
+   "tier": 2,
+   "reroll_cost": 7,
+   "offers": [
+    {
+     "id": "item_ranged_part",
+     "name": "远程伤害+15",
+     "kind": "item",
+     "price": 60,
+     "effects": [
+      {
+       "key": "stat_ranged_damage",
+       "value": 15
+      }
+     ]
+    },
+    {
+     "id": "item_melee_part",
+     "name": "近战伤害+15",
+     "kind": "item",
+     "price": 60,
+     "effects": [
+      {
+       "key": "stat_melee_damage",
+       "value": 15
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "buy",
+     "margin": 2.7
+    },
+    {
+     "index": 1,
+     "recommendation": "skip",
+     "margin": -19.6
+    }
+   ]
+  }
+ },
+ {
+  "name": "c6 钱多店烂：应刷新",
+  "player": {
+   "wave": 5,
+   "gold": 200,
+   "danger": 0,
+   "character_id": "character_generalist",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 5,
+    "stat_melee_damage": 15,
+    "stat_ranged_damage": 15,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 5,
+    "stat_dodge": 0,
+    "stat_luck": 10,
+    "stat_speed": 5
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 1,
+   "reroll_cost": 3,
+   "offers": [
+    {
+     "id": "item_duct_tape",
+     "name": "胶带",
+     "kind": "item",
+     "price": 20
+    }
+   ]
+  },
+  "expect": {
+   "reroll": "yes",
+   "reroll_margin": 10.5
+  }
+ },
+ {
+  "name": "c7 钱不够但货很好：锁定",
+  "player": {
+   "wave": 9,
+   "gold": 40,
+   "danger": 1,
+   "character_id": "character_golem",
+   "stats": {
+    "stat_max_hp": 150,
+    "stat_armor": 20,
+    "stat_melee_damage": 30,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 0,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 10,
+    "stat_dodge": -20,
+    "stat_luck": 0,
+    "stat_speed": -20
+   },
+   "weapon_ids": [
+    "weapon_fist_1"
+   ]
+  },
+  "shop": {
+   "tier": 2,
+   "reroll_cost": 6,
+   "offers": [
+    {
+     "id": "item_ball_and_chain",
+     "name": "链球",
+     "kind": "item",
+     "price": 75
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "lock",
+     "margin": 16.4
+    }
+   ],
+   "reroll_margin": -4.8
+  }
+ },
+ {
+  "name": "c8 无甲近战中期：金属板可考虑",
+  "player": {
+   "wave": 6,
+   "gold": 60,
+   "danger": 0,
+   "character_id": "character_brawler",
+   "stats": {
+    "stat_max_hp": 120,
+    "stat_armor": 0,
+    "stat_melee_damage": 25,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 15,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 5,
+    "stat_dodge": 0,
+    "stat_luck": 5,
+    "stat_speed": 5
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 1,
+   "reroll_cost": 4,
+   "offers": [
+    {
+     "id": "item_metal_plate",
+     "name": "金属板",
+     "kind": "item",
+     "price": 40
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "maybe",
+     "margin": 5.5
+    }
+   ],
+   "reroll_margin": -2.2
+  },
+  "note": "金属板落在 可考虑/买 带中间；120 血近战中期，护甲件值 12 分左右"
+ },
+ {
+  "name": "c9 诅咒物品：不推荐",
+  "player": {
+   "wave": 7,
+   "gold": 100,
+   "danger": 0,
+   "character_id": "character_generalist",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 5,
+    "stat_melee_damage": 20,
+    "stat_ranged_damage": 20,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 10,
+    "stat_dodge": 0,
+    "stat_luck": 0,
+    "stat_speed": 5
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 1,
+   "reroll_cost": 5,
+   "offers": [
+    {
+     "id": "item_cursed_dummy",
+     "name": "诅咒稻草人",
+     "kind": "item",
+     "price": 10,
+     "cursed": true,
+     "effects": [
+      {
+       "key": "stat_curse",
+       "value": 10
+      },
+      {
+       "key": "stat_percent_damage",
+       "value": 20
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "skip",
+     "margin": -7.6
+    }
+   ],
+   "reroll_margin": 9.7
+  }
+ },
+ {
+  "name": "c10 农夫收获流：独轮车买、眼镜不买",
+  "player": {
+   "wave": 6,
+   "gold": 90,
+   "danger": 0,
+   "character_id": "character_farmer",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 3,
+    "stat_melee_damage": 10,
+    "stat_ranged_damage": 10,
+    "stat_attack_speed": 5,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 0,
+    "stat_dodge": 0,
+    "stat_luck": 10,
+    "stat_speed": 0,
+    "stat_harvesting": 45
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 1,
+   "reroll_cost": 4,
+   "offers": [
+    {
+     "id": "item_wheelbarrow",
+     "name": "独轮车",
+     "kind": "item",
+     "price": 40
+    },
+    {
+     "id": "item_glasses",
+     "name": "眼镜",
+     "kind": "item",
+     "price": 20
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "buy",
+     "margin": 3.7
+    },
+    {
+     "index": 1,
+     "recommendation": "skip",
+     "margin": -3.2
+    }
+   ]
+  },
+  "note": "收获流 45 点时独轮车明显过买入门槛；眼镜（+闪避/ luck 类）仍不值得"
+ },
+ {
+  "name": "c11 一档烂店：池子期望低于现状，不刷",
+  "player": {
+   "wave": 3,
+   "gold": 60,
+   "danger": 0,
+   "character_id": "character_generalist",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 3,
+    "stat_melee_damage": 10,
+    "stat_dodge": 0,
+    "stat_speed": 0,
+    "stat_luck": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1"
+   ]
+  },
+  "shop": {
+   "tier": 0,
+   "reroll_cost": 2,
+   "offers": [
+    {
+     "id": "item_duct_tape",
+     "name": "胶带",
+     "kind": "item",
+     "price": 20
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "skip",
+     "margin": -2.0
+    }
+   ],
+   "reroll": "no",
+   "reroll_expected_max": 10.0,
+   "reroll_margin": -1.6
+  },
+  "note": "旧的 anchor×1.5 模型这里会误判成 yes（15 vs 现有 5.3 分）；按 tier0 真实池子算 E[最好件]=4.2，刷价 2 金不值"
+ },
+ {
+  "name": "c12 四档店买不起但池子很肥：刷出来锁定",
+  "player": {
+   "wave": 3,
+   "gold": 60,
+   "danger": 0,
+   "character_id": "character_generalist",
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 3,
+    "stat_melee_damage": 10,
+    "stat_dodge": 0,
+    "stat_speed": 0,
+    "stat_luck": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1"
+   ]
+  },
+  "shop": {
+   "tier": 4,
+   "reroll_cost": 14,
+   "offers": [
+    {
+     "id": "item_duct_tape",
+     "name": "胶带",
+     "kind": "item",
+     "price": 20
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "skip",
+     "margin": -40.5
+    }
+   ],
+   "reroll": "yes",
+   "reroll_expected_min": 50.0,
+   "reroll_margin": 81.3
+  },
+  "note": "档位池里高分件虽买不起，但刷出来可以免费锁定，下波再买"
+ },
+ {
+  "name": "c13 预算只够一件：高分那件买、次高分锁",
+  "player": {
+   "wave": 12,
+   "gold": 100,
+   "danger": 2,
+   "character_id": "character_soldier",
+   "stats": {
+    "stat_max_hp": 140,
+    "stat_armor": 5,
+    "stat_melee_damage": 30,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 10,
+    "stat_dodge": 5,
+    "stat_luck": 0,
+    "stat_speed": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 3,
+   "reroll_cost": 10,
+   "offers": [
+    {
+     "id": "item_probe_armor8",
+     "name": "重甲碎片",
+     "kind": "item",
+     "price": 90,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 8
+      }
+     ]
+    },
+    {
+     "id": "item_probe_hp40",
+     "name": "生血肉块",
+     "kind": "item",
+     "price": 80,
+     "effects": [
+      {
+       "key": "stat_max_hp",
+       "value": 40
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "buy",
+     "margin": 58.2
+    },
+    {
+     "index": 1,
+     "recommendation": "lock",
+     "margin": 45.0
+    }
+   ],
+   "buy_set": [
+    0
+   ],
+   "lock_index": 1,
+   "reroll": "no"
+  },
+  "note": "100 金买不起两件：独立打分会把两件都标买（钱不够），组合选择挑价值最高的那件，另一件转锁"
+ },
+ {
+  "name": "c14 两件便宜的加起来更值：放弃单件最贵的",
+  "player": {
+   "wave": 12,
+   "gold": 100,
+   "danger": 2,
+   "character_id": "character_soldier",
+   "stats": {
+    "stat_max_hp": 140,
+    "stat_armor": 5,
+    "stat_melee_damage": 30,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 10,
+    "stat_dodge": 5,
+    "stat_luck": 0,
+    "stat_speed": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 3,
+   "reroll_cost": 10,
+   "offers": [
+    {
+     "id": "item_probe_armor8",
+     "name": "铁壁",
+     "kind": "item",
+     "price": 90,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 8
+      }
+     ]
+    },
+    {
+     "id": "item_probe_armor4",
+     "name": "小盾甲",
+     "kind": "item",
+     "price": 45,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 4
+      }
+     ]
+    },
+    {
+     "id": "item_probe_hp25",
+     "name": "血条",
+     "kind": "item",
+     "price": 45,
+     "effects": [
+      {
+       "key": "stat_max_hp",
+       "value": 25
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "lock",
+     "margin": 58.2
+    },
+    {
+     "index": 1,
+     "recommendation": "buy",
+     "margin": 6.6
+    },
+    {
+     "index": 2,
+     "recommendation": "buy",
+     "margin": 11.2
+    }
+   ],
+   "buy_set": [
+    1,
+    2
+   ],
+   "lock_index": 0
+  },
+  "note": "铁壁单件分最高，但 小盾甲+血条 的组合价值更高且同花 90 金 —— 逐件比较看不出这种替代关系"
+ },
+ {
+  "name": "c15 同价同类护甲：边际递减后买血不买第二件甲",
+  "player": {
+   "wave": 12,
+   "gold": 100,
+   "danger": 2,
+   "character_id": "character_soldier",
+   "stats": {
+    "stat_max_hp": 140,
+    "stat_armor": 5,
+    "stat_melee_damage": 30,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 10,
+    "stat_crit_chance": 0,
+    "stat_percent_damage": 10,
+    "stat_dodge": 5,
+    "stat_luck": 0,
+    "stat_speed": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1",
+    "weapon_knife_1"
+   ]
+  },
+  "shop": {
+   "tier": 3,
+   "reroll_cost": 10,
+   "offers": [
+    {
+     "id": "item_probe_armor8",
+     "name": "甲A",
+     "kind": "item",
+     "price": 50,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 8
+      }
+     ]
+    },
+    {
+     "id": "item_probe_armor8b",
+     "name": "甲B",
+     "kind": "item",
+     "price": 50,
+     "effects": [
+      {
+       "key": "stat_armor",
+       "value": 8
+      }
+     ]
+    },
+    {
+     "id": "item_probe_hp80",
+     "name": "血海",
+     "kind": "item",
+     "price": 100,
+     "effects": [
+      {
+       "key": "stat_max_hp",
+       "value": 80
+      }
+     ]
+    }
+   ]
+  },
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "lock",
+     "margin": 58.2
+    },
+    {
+     "index": 1,
+     "recommendation": "lock",
+     "margin": 58.2
+    },
+    {
+     "index": 2,
+     "recommendation": "buy",
+     "margin": 135.0
+    }
+   ],
+   "buy_set": [
+    2
+   ],
+   "reroll": "no"
+  },
+  "note": "两件同价同效果的甲叠在一起时第二件边际递减（护甲 diminishing），组合值 170.4 < 血海 180.0；若按独立分相加会误判成 206.4 两件都买"
+ },
+ {
+  "name": "c16 凑 2 件徒手套：利爪带套装增量（端到端接线的漂移销）",
+  "player": {
+   "wave": 4,
+   "gold": 40,
+   "danger": 0,
+   "stats": {
+    "stat_max_hp": 100,
+    "stat_armor": 5,
+    "stat_melee_damage": 10,
+    "stat_ranged_damage": 0,
+    "stat_attack_speed": 0,
+    "stat_crit_chance": 5,
+    "stat_percent_damage": 0,
+    "stat_dodge": 5,
+    "stat_speed": 0,
+    "stat_luck": 0
+   },
+   "weapon_ids": [
+    "weapon_fist_1"
+   ]
+  },
+  "shop": {
+   "tier": 0,
+   "reroll_cost": 3,
+   "offers": [
+    {
+     "id": "weapon_claw_1",
+     "name": "利爪",
+     "kind": "weapon",
+     "price": 15
+    },
+    {
+     "id": "item_cake",
+     "name": "蛋糕",
+     "kind": "item",
+     "price": 15
+    },
+    {
+     "id": "weapon_pistol_1",
+     "name": "手枪",
+     "kind": "weapon",
+     "price": 10
+    }
+   ]
+  },
+  "note": "套装数学由 evaluate 的 self_test_sets 逐条核对；这条只保证 score_item 真的接上了套装增量——把接线拆掉，slot0 的阈值距离会掉下去。",
+  "expect": {
+   "items": [
+    {
+     "index": 0,
+     "recommendation": "buy",
+     "margin": 68.4
+    },
+    {
+     "index": 1,
+     "recommendation": "skip",
+     "margin": -6.0
+    },
+    {
+     "index": 2,
+     "recommendation": "buy",
+     "margin": 3.3
+    }
+   ],
+   "reroll": "no",
+   "buy_set": [
+    0,
+    2
+   ]
+  }
+ }
+]

@@ -1,0 +1,19 @@
+{
+  "name": "ShopAdvisor",
+  "namespace": "BrotatoHelper",
+  "version_number": "0.1.0",
+  "description": "商店决策助手：每个栏位给出 买/可考虑/锁定/跳过 评分，并建议何时刷新、何时锁定。",
+  "author": "BrotatoHelper",
+  "dependencies": [],
+  "optional_dependencies": [],
+  "repository": {"target_url": "https://github.com/lichlzh/brotato-helper"},
+  "extra": {
+    "godot": {
+      "incompatibilities": [],
+      "authors": ["BrotatoHelper"],
+      "compatible_mod_loader_version": ["4.0.0", "5.0.0", "6.0.0", "6.3.0"],
+      "compatible_game_version": ["*"],
+      "config_defaults": {}
+    }
+  }
+}
